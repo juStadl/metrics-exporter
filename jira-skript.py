@@ -27,30 +27,23 @@ def open_bugs_metric():
     # Ansatz: Defaultkey implementieren, durch Änderung eines Filters wird ein anderer Key verwendet
     # ABER: es gibt ein Projekt (SAVF), aber verschiedene Boards innerhalb des Projekts
     try:
-        # Board- IDs der entsprechende Team-Boards
-        boards = {
-            214: "Pi",
-            213: "Delta"
+        jql = f"project={PROJECT_KEY} AND issuetype=Bug AND status in ('To Do', 'In Progress', 'Review')"
+        url = f"{JIRA_URL}/rest/api/2/search"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        } 
+        params = {
+            "jql" : jql
         }
 
-        for board_id, board_name in boards.items():
-            jql = f"project={PROJECT_KEY} AND issuetype=Bug AND status in ('To Do', 'In Progress', 'Review') AND sprint in openSprints({board_id})"
-            url = f"{JIRA_URL}/rest/api/2/search"
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            } 
-            params = {
-                "jql" : jql
-            }
+        response = requests.get(url, headers=headers, auth=auth, params=params)
+        response.raise_for_status()
 
-            response = requests.get(url, headers=headers, auth=auth, params=params)
-            response.raise_for_status()
-
-            data = response.json()
-            issues = data["total"]                  # speichert Anzahl der Bugs, die entweder TO DO, IN PROGRESS oder IN REVIEW sind
-            print("Anzahl Bugs: " + str(issues))
-            statsd.gauge("jira.open_bugs", issues, tags=[f"board_id:{board_id}" ,f"board_name:{board_name}"])
+        data = response.json()
+        issues = data["total"]                  # speichert Anzahl der Bugs, die entweder TO DO, IN PROGRESS oder IN REVIEW sind
+        print("Anzahl Bugs: " + str(issues))
+        statsd.gauge("jira.open_bugs", issues)
     
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data from Jira: {e}")

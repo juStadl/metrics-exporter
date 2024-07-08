@@ -20,56 +20,48 @@ initialize(**options)
 # Authentifizierung
 auth = HTTPBasicAuth(USERNAME, API_TOKEN)
 
-# Boards
-boards = {
-    214:"Pi",
-    213:"Delta"
-}
-
 # Anzahl offener Bugs ( Metrik )
-def open_bugs_metric():
+def open_bugs_metric(board_id, board_name):
 
 # Die Teams werden durch ihre Board IDs gefiltert.
 # Um weitere Teams zu ergänzen, Board-ID im Dictionary 'boards' (Zeile 24)
 
     try:
-        for board_id, board_name in boards.items():
-            jql = f"project={PROJECT_KEY} AND issuetype=Bug AND sprint in openSprints() AND status != 'Done'"
-            url = f"{JIRA_URL}/rest/agile/1.0/board/{board_id}/issue"
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            } 
-            params = {
-                "jql" : jql
-            }
+        jql = f"project={PROJECT_KEY} AND issuetype=Bug AND sprint in openSprints() AND status != 'Done'"
+        url = f"{JIRA_URL}/rest/agile/1.0/board/{board_id}/issue"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        } 
+        params = {
+           "jql" : jql
+        }
 
-            response = requests.get(url, headers=headers, auth=auth, params=params)
-            response.raise_for_status()
+        response = requests.get(url, headers=headers, auth=auth, params=params)
+        response.raise_for_status()
 
-            data = response.json()
-            issues = data["total"]
-            print(f"Anzahl Bugs für Board '{board_name}' (ID {board_id}): {issues}")
+        data = response.json()
+        issues = data["total"]
+        print(f"Anzahl Bugs für Board '{board_name}' (ID {board_id}): {issues}")
 
-            # Metrik an Datadog senden
-            statsd.gauge("jira.open_bugs", issues, tags=[f"board_name:{board_name}"])
+        # Metrik an Datadog senden
+        statsd.gauge("jira.open_bugs", issues, tags=[f"Team:{board_name}"])
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data from Jira: {e}")
         return None 
 
 # Sammeln aller geschlossenen Bugs ( Hilfsfunktion )    
-def get_all_done_bugs():
+def get_all_done_bugs_by_boardId(board_id):
     try:
         jql = f"project={PROJECT_KEY} AND issuetype=Bug AND status='Done'"
-        url = f"{JIRA_URL}/rest/api/2/search"
+        url = f"{JIRA_URL}/rest/agile/1.0/board/{board_id}/issue"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
-        } 
-        auth = (USERNAME, API_TOKEN)
+        }
         params = {
-            "jql" : jql
+            "jql": jql
         }
 
         response = requests.get(url, headers=headers, auth=auth, params=params)
@@ -87,8 +79,8 @@ def get_all_done_bugs():
         return print(f"Error fetching issues: {e}")
     
 # Zeit in Stunden, bis Bugs abgearbeitet wurden ( Metrik )
-def average_bug_resolution_time_metric():
-    issues = get_all_done_bugs()
+def average_bug_resolution_time_metric(board_id, board_name):
+    issues = get_all_done_bugs_by_boardId(board_id)
 
     for issue in issues:
         creationDate = str(issue["fields"]["created"])
@@ -101,23 +93,23 @@ def average_bug_resolution_time_metric():
             time_diff_seconds = (dt_endDate - dt_creationDate).total_seconds()
             time_diff_hours = time_diff_seconds / 3600   
             print(time_diff_hours)
-            statsd.histogram("jira.bug_resolution_time", time_diff_hours)
+            statsd.histogram("jira.bug_resolution_time", time_diff_hours, tags=[f"Team:{board_name}"])
 
         else:
             print("Failed to retrieve issues")
 
 # Anzahl aller Bugs pro Zeiteinheit ( Metrik )
-def bug_frequency_metric():
+def bug_frequency_metric(board_id, board_name):
     try:
         jql = f"project={PROJECT_KEY} AND issuetype=Bug"
-        url = f"{JIRA_URL}/rest/api/2/search"
+        url = f"{JIRA_URL}/rest/agile/1.0/board/{board_id}/issue"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
         } 
         auth = (USERNAME, API_TOKEN)
         params = {
-            "jql" : jql
+           "jql" : jql
         }
 
         response = requests.get(url, headers=headers, auth=auth, params=params)
@@ -128,16 +120,16 @@ def bug_frequency_metric():
 
         print(bugs)
 
-        statsd.histogram("jira.bug_frequency", bugs)
+        statsd.histogram("jira.bug_frequency", bugs, tags=[f"Team:{board_name}"])
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching bugs from Jira: {e}")
         
 # Durchschnittszeit, in der eine Story auf 'Done' gesetzt wird    
-def lead_time_for_changes_metric():
+def lead_time_for_changes_metric(board_id, board_name):
     try:
         jql = f"project={PROJECT_KEY} AND sprint in openSprints() AND issuetype='Story' AND status='Done'"
-        url = f"{JIRA_URL}/rest/api/2/search"
+        url = f"{JIRA_URL}/rest/agile/1.0/board/{board_id}/issue"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
@@ -165,7 +157,7 @@ def lead_time_for_changes_metric():
                 time_diff_seconds = (dt_endDate - dt_creationDate).total_seconds()
                 time_diff_hours = time_diff_seconds / 3600   
                 print(time_diff_hours)
-                statsd.histogram("jira.lead_time_for_change", time_diff_hours)
+                statsd.histogram("jira.lead_time_for_change", time_diff_hours, tags=[f"Team:{board_name}"])
 
             else:
                 print("Failed to retrieve issues")
@@ -174,11 +166,11 @@ def lead_time_for_changes_metric():
         print(f"Error fetching data from Jira: {e}")
 
 # Anzahl der Bugs pro Stories in einem aktiven Sprint
-def change_failure_rate_metric():    
+def change_failure_rate_metric(board_id, board_name):    
     try:
         jql_bugs = f"project={PROJECT_KEY} AND sprint in openSprints() AND issuetype=Bug"
         jql_stories = f"project={PROJECT_KEY} AND sprint in openSprints() AND issuetype=Story"
-        url = f"{JIRA_URL}/rest/api/2/search"
+        url = f"{JIRA_URL}/rest/agile/1.0/board/{board_id}/issue"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
@@ -206,7 +198,7 @@ def change_failure_rate_metric():
 
         change_failure_rate = (count_of_bugs / count_of_stories)
 
-        statsd.histogram("jira.change_failure_rate", change_failure_rate)
+        statsd.histogram("jira.change_failure_rate", change_failure_rate, tags=[f"Team:{board_name}"])
 
     except requests.exceptions.RequestException as e:
         print(f"Error calculating metric (Change Failure Rate): {e}")
@@ -214,16 +206,23 @@ def change_failure_rate_metric():
     
 # Mainfunktion, um Metrikfunktionen aufzurufen
 if __name__ == "__main__":
-       try:
+    # Boards
+    boards = {
+        214:"Pi",
+        213:"Delta"
+}
+    try:
         while(True):
-            open_bugs_metric()
-            bug_frequency_metric()
-            average_bug_resolution_time_metric()
-            lead_time_for_changes_metric()
-            change_failure_rate_metric()
-            time.sleep(300)
+            for boards_id, boards_name in boards.items():
+                open_bugs_metric(boards_id, boards_name)
+                bug_frequency_metric(boards_id, boards_name)
+                average_bug_resolution_time_metric(boards_id, boards_name)
+                lead_time_for_changes_metric(boards_id, boards_name)
+                change_failure_rate_metric(boards_id, boards_name)
+            print("Finished schedule")
+            time.sleep(300)    
        
-       except Exception as e:
+    except Exception as e:
            print(f"Error: {e}")
 
 

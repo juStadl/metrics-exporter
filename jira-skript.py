@@ -26,12 +26,11 @@ boards = {
     213:"Delta"
 }
 
-# Anzahl nicht geschlossener Bugs ( Metrik )
+# Anzahl offener Bugs ( Metrik )
 def open_bugs_metric():
 
-    # Einführen eines Parameters $PROJECT_KEY, der als Tag mitgegeben werden kann und das Teamboard bestimmt, welches betrachetet wird
-    # Ansatz: Defaultkey implementieren, durch Änderung eines Filters wird ein anderer Key verwendet
-    # ABER: es gibt ein Projekt (SAVF), aber verschiedene Boards innerhalb des Projekts
+# Die Teams werden durch ihre Board IDs gefiltert.
+# Um weitere Teams zu ergänzen, Board-ID im Dictionary 'boards' (Zeile 24)
 
     try:
         for board_id, board_name in boards.items():

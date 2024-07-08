@@ -20,34 +20,44 @@ initialize(**options)
 # Authentifizierung
 auth = HTTPBasicAuth(USERNAME, API_TOKEN)
 
+# Boards
+boards = {
+    214:"Pi",
+    213:"Delta"
+}
+
 # Anzahl nicht geschlossener Bugs ( Metrik )
 def open_bugs_metric():
 
     # Einführen eines Parameters $PROJECT_KEY, der als Tag mitgegeben werden kann und das Teamboard bestimmt, welches betrachetet wird
     # Ansatz: Defaultkey implementieren, durch Änderung eines Filters wird ein anderer Key verwendet
     # ABER: es gibt ein Projekt (SAVF), aber verschiedene Boards innerhalb des Projekts
+
     try:
-        jql = f"project={PROJECT_KEY} AND issuetype=Bug AND status in ('To Do', 'In Progress', 'Review')"
-        url = f"{JIRA_URL}/rest/api/2/search"
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        } 
-        params = {
-            "jql" : jql
-        }
+        for board_id, board_name in boards.items():
+            jql = f"project={PROJECT_KEY} AND issuetype=Bug AND sprint in openSprints() AND status != 'Done'"
+            url = f"{JIRA_URL}/rest/agile/1.0/board/{board_id}/issue"
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            } 
+            params = {
+                "jql" : jql
+            }
 
-        response = requests.get(url, headers=headers, auth=auth, params=params)
-        response.raise_for_status()
+            response = requests.get(url, headers=headers, auth=auth, params=params)
+            response.raise_for_status()
 
-        data = response.json()
-        issues = data["total"]                  # speichert Anzahl der Bugs, die entweder TO DO, IN PROGRESS oder IN REVIEW sind
-        print("Anzahl Bugs: " + str(issues))
-        statsd.gauge("jira.open_bugs", issues)
-    
+            data = response.json()
+            issues = data["total"]
+            print(f"Anzahl Bugs für Board '{board_name}' (ID {board_id}): {issues}")
+
+            # Metrik an Datadog senden
+            statsd.gauge("jira.open_bugs", issues, tags=[f"board_name:{board_name}"])
+
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data from Jira: {e}")
-        return None
+        return None 
 
 # Sammeln aller geschlossenen Bugs ( Hilfsfunktion )    
 def get_all_done_bugs():

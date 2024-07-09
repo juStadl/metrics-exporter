@@ -1,4 +1,4 @@
-import requests
+import requests, logging
 from requests.auth import HTTPBasicAuth
 from datadog import initialize, statsd
 from datetime import datetime
@@ -19,6 +19,9 @@ initialize(**options)
 
 # Authentifizierung
 auth = HTTPBasicAuth(USERNAME, API_TOKEN)
+
+# Logging Initialisierung
+logging.basicConfig(level=logging.ERROR)
 
 # Anzahl offener Bugs ( Metrik )
 def open_bugs_metric(board_id, board_name):
@@ -42,13 +45,12 @@ def open_bugs_metric(board_id, board_name):
 
         data = response.json()
         issues = data["total"]
-        print(f"Anzahl Bugs für Board '{board_name}' (ID {board_id}): {issues}")
 
         # Metrik an Datadog senden
         statsd.gauge("jira.open_bugs", issues, tags=[f"Team:{board_name}"])
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching data from Jira: {e}")
+        logging.error(f"Error fetching amount of open bugs frim Jira: {e}")
         return None 
 
 # Sammeln aller geschlossenen Bugs ( Hilfsfunktion )    
@@ -76,27 +78,32 @@ def get_all_done_bugs_by_boardId(board_id):
 
         return issues_list
     except requests.exceptions.RequestException as e:
-        return print(f"Error fetching issues: {e}")
+        logging.error(f"Error fetching amount of bugs with status 'DONE' by Board-ID: {e}")
+        return None
     
 # Zeit in Stunden, bis Bugs abgearbeitet wurden ( Metrik )
 def average_bug_resolution_time_metric(board_id, board_name):
-    issues = get_all_done_bugs_by_boardId(board_id)
+    try:
+        issues = get_all_done_bugs_by_boardId(board_id)
 
-    for issue in issues:
-        creationDate = str(issue["fields"]["created"])
-        endDate = str(issue["fields"]["statuscategorychangedate"])
+        for issue in issues:
+            creationDate = str(issue["fields"]["created"])
+            endDate = str(issue["fields"]["statuscategorychangedate"])
 
-        if creationDate and endDate:
-            dt_creationDate = datetime.strptime(creationDate, "%Y-%m-%dT%H:%M:%S.%f%z")
-            dt_endDate = datetime.strptime(endDate, "%Y-%m-%dT%H:%M:%S.%f%z")
+            if creationDate and endDate:
+                dt_creationDate = datetime.strptime(creationDate, "%Y-%m-%dT%H:%M:%S.%f%z")
+                dt_endDate = datetime.strptime(endDate, "%Y-%m-%dT%H:%M:%S.%f%z")
 
-            time_diff_seconds = (dt_endDate - dt_creationDate).total_seconds()
-            time_diff_hours = time_diff_seconds / 3600   
-            print(time_diff_hours)
-            statsd.histogram("jira.bug_resolution_time", time_diff_hours, tags=[f"Team:{board_name}"])
+                time_diff_seconds = (dt_endDate - dt_creationDate).total_seconds()
+                time_diff_hours = time_diff_seconds / 3600   
+                statsd.histogram("jira.bug_resolution_time", time_diff_hours, tags=[f"Team:{board_name}"])
 
-        else:
-            print("Failed to retrieve issues")
+            else:
+                logging.error("Failed to retriebe issues")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to collecht Average Bug Resolution Time Metric: {e}")
+        return None
 
 # Anzahl aller Bugs pro Zeiteinheit ( Metrik )
 def bug_frequency_metric(board_id, board_name):
@@ -118,12 +125,11 @@ def bug_frequency_metric(board_id, board_name):
         data = response.json()
         bugs = data["total"]
 
-        print(bugs)
-
         statsd.histogram("jira.bug_frequency", bugs, tags=[f"Team:{board_name}"])
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching bugs from Jira: {e}")
+        logging.error(f"Error fetching bugs from Jira: {e}")
+        return None
         
 # Durchschnittszeit, in der eine Story auf 'Done' gesetzt wird    
 def lead_time_for_changes_metric(board_id, board_name):
@@ -155,15 +161,16 @@ def lead_time_for_changes_metric(board_id, board_name):
                 dt_endDate = datetime.strptime(endDate, "%Y-%m-%dT%H:%M:%S.%f%z")
 
                 time_diff_seconds = (dt_endDate - dt_creationDate).total_seconds()
-                time_diff_hours = time_diff_seconds / 3600   
-                print(time_diff_hours)
-                statsd.histogram("jira.lead_time_for_change", time_diff_hours, tags=[f"Team:{board_name}"])
+                time_diff_hours = time_diff_seconds / 3600
+                time_diff_days = time_diff_hours / 24   
+                statsd.histogram("jira.lead_time_for_change", time_diff_days, tags=[f"Team:{board_name}"])
 
             else:
-                print("Failed to retrieve issues")
+                logging.error("Failed to retrieve issues")
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching data from Jira: {e}")
+        logging.error(f"Error fetching data from Jira: {e}")
+        return None
 
 # Anzahl der Bugs pro Stories in einem aktiven Sprint
 def change_failure_rate_metric(board_id, board_name):    
@@ -201,7 +208,7 @@ def change_failure_rate_metric(board_id, board_name):
         statsd.histogram("jira.change_failure_rate", change_failure_rate, tags=[f"Team:{board_name}"])
 
     except requests.exceptions.RequestException as e:
-        print(f"Error calculating metric (Change Failure Rate): {e}")
+        logging.error(f"Error calculating metric (Change Failure Rate): {e}")
 
     
 # Mainfunktion, um Metrikfunktionen aufzurufen
@@ -212,17 +219,13 @@ if __name__ == "__main__":
         213:"Delta"
 }
     try:
-        while(True):
-            for boards_id, boards_name in boards.items():
-                open_bugs_metric(boards_id, boards_name)
-                bug_frequency_metric(boards_id, boards_name)
-                average_bug_resolution_time_metric(boards_id, boards_name)
-                lead_time_for_changes_metric(boards_id, boards_name)
-                change_failure_rate_metric(boards_id, boards_name)
-            print("Finished schedule")
-            time.sleep(300)    
+        for boards_id, boards_name in boards.items():
+            open_bugs_metric(boards_id, boards_name)
+            bug_frequency_metric(boards_id, boards_name)
+            average_bug_resolution_time_metric(boards_id, boards_name)
+            lead_time_for_changes_metric(boards_id, boards_name)
+            change_failure_rate_metric(boards_id, boards_name)
+        logging.info("Finished schedule")    
        
     except Exception as e:
-           print(f"Error: {e}")
-
-
+           logging.error(f"Error in Mainmethod: {e}")

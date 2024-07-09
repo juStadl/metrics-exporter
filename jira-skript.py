@@ -24,7 +24,7 @@ auth = HTTPBasicAuth(USERNAME, API_TOKEN)
 def open_bugs_metric(board_id, board_name):
 
 # Die Teams werden durch ihre Board IDs gefiltert.
-# Um weitere Teams zu ergänzen, Board-ID im Dictionary 'boards' (Zeile 24)
+# Um weitere Teams zu ergänzen, Board-ID im Dictionary 'boards' hinzufügen
 
     try:
         jql = f"project={PROJECT_KEY} AND issuetype=Bug AND sprint in openSprints() AND status != 'Done'"

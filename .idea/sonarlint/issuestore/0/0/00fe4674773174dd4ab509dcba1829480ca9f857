@@ -1,0 +1,12 @@
+
+opython:S1192$"RDefine a constant instead of duplicating this literal "application/json" 10 times.(Íï©¯üÿÿÿÿ
+opython:S1192^"WDefine a constant instead of duplicating this literal "%Y-%m-%dT%H:%M:%S.%f%z" 4 times.(ƒÍøÖ
+zpython:S15429"bRename function "get_all_done_bugs_by_boardId" to match the regular expression ^[a-z_][a-z0-9_]*$.(é‚Î©
+ypython:S117Z"]Rename this local variable "creationDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(´Á†“þÿÿÿÿ
+wpython:S117^"`Rename this local variable "dt_creationDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(ƒÍøÖ
+rpython:S117_"[Rename this local variable "dt_endDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(ÿú„Â
+opython:S117["XRename this local variable "endDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(²è€²
+zpython:S117›"]Rename this local variable "creationDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(º†£Èøÿÿÿÿ
+xpython:S117 "`Rename this local variable "dt_creationDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(ƒÍøÖ
+spython:S117¡"[Rename this local variable "dt_endDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(ÿú„Â
+ppython:S117œ"XRename this local variable "endDate" to match the regular expression ^[_a-z][a-z0-9_]*$.(¸÷¢ 

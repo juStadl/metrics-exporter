@@ -210,10 +210,8 @@ def change_failure_rate_metric(board_id, board_name):
     except requests.exceptions.RequestException as e:
         logging.error(f"Error calculating metric (Change Failure Rate): {e}")
 
-    
-# Mainfunktion, um Metrikfunktionen aufzurufen
-if __name__ == "__main__":
-    # Boards
+def main():
+        # Boards
     boards = {
         214:"Pi",
         213:"Delta"
@@ -229,3 +227,8 @@ if __name__ == "__main__":
        
     except Exception as e:
            logging.error(f"Error in Mainmethod: {e}")
+
+
+# Mainfunktion, um Metrikfunktionen aufzurufen
+if __name__ == "__main__":
+    main()
